@@ -1,5 +1,3 @@
-# frozen_string_literal: true
 source "https://rubygems.org"
-
-gem "sinatra", require: "sinatra/base"
-gem "rack"
+gem 'sinatra', '1.1.0'
+gem 'json'
