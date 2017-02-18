@@ -3,8 +3,8 @@ require 'json'
 
 get '/' do
     responseObject = {
-        "color"=> "#fff000",
-        "head_url"=> "url/to/your/img/file"
+        "color"=> "#058dbf",
+        "head_url"=> "http://pix.iemoji.com/images/emoji/apple/ios-9/256/snake.png"
     }
 
     return responseObject.to_json
@@ -32,8 +32,8 @@ post '/move' do
 
     # Dummy response
     responseObject = {
-        "move" => "north", # One of either "north", "east", "south", or "west".
-        "taunt" => "going north!",
+        "move" => "up",
+        "taunt" => "going up!",
     }
 
     return responseObject.to_json
