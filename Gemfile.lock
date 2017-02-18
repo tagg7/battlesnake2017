@@ -11,7 +11,7 @@ GEM
     tilt (2.0.6)
 
 PLATFORMS
-  ruby
+  ruby '2.2.6'
 
 DEPENDENCIES
   rack
