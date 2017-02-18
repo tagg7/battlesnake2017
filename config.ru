@@ -1,5 +1,8 @@
-require "rubygems"
-require "bundler"
+$stdout.sync = true # enables printing to the console
+
+require 'rubygems'
+require 'bundler'
 Bundler.require
-require "./ruby_snake"
-run RubySnake
+
+require './web.rb'
+run Sinatra::Application
