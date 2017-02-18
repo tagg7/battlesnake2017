@@ -1,50 +1,32 @@
-require 'sinatra'
-require 'json'
+require "json"
 
-get '/' do
-    responseObject = {
-        "color"=> "#058dbf",
-        "head_url"=> "http://pix.iemoji.com/images/emoji/apple/ios-9/256/snake.png"
-    }
+class RubySnake < Sinatra::Base
+  def initialize(*)
+    @@moves = Hash.new(0)
+    super
+  end
 
-    return responseObject.to_json
-end
+  def move(id)
+    @@moves[id] = (@@moves[id] + 1) % 4
+    %w(up left down right)[@@moves[id]]
+  end
 
-post '/start' do
-    requestBody = request.body.read
-    requestJson = requestBody ? JSON.parse(requestBody) : {}
+  post "/*/start" do
+    {
+      name: name(params),
+      color: "#123123"
+    }.to_json
+  end
 
-    # Get ready to start a game with the request data
+  post "/*/move" do
+    {move: move(id(params))}.to_json
+  end
 
-    # Dummy response
-    responseObject = {
-        "taunt" => "battlesnake-ruby",
-    }
+  def id(params)
+    params['splat']
+  end
 
-    return responseObject.to_json
-end
-
-post '/move' do
-    requestBody = request.body.read
-    requestJson = requestBody ? JSON.parse(requestBody) : {}
-
-    # Calculate a move with the request data
-
-    # Dummy response
-    responseObject = {
-        "move" => "up",
-        "taunt" => "going up!",
-    }
-
-    return responseObject.to_json
-end
-
-post '/end' do
-    requestBody = request.body.read
-    requestJson = requestBody ? JSON.parse(requestBody) : {}
-
-    # No response required
-    responseObject = {}
-
-    return responseObject.to_json
+  def name(params)
+    id(params).join("-")
+  end
 end
