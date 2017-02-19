@@ -1,5 +1,6 @@
-require "rubygems"
-require "bundler"
+require 'rubygems'
+require 'bundler'
 Bundler.require
-require "./web"
-run RubySnake
+
+require './web.rb'
+run Sinatra::Application
