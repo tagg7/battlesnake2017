@@ -1,5 +1,10 @@
 require 'sinatra'
+require 'sinatra/reloader' if development?
 require 'json'
+
+get '/' do
+    return "Hello World!"
+end
 
 post '/start' do
     requestBody = request.body.read
