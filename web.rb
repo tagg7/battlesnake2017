@@ -43,6 +43,7 @@ post '/move' do
     snakesLookup = generateSnakesLookup(snakes)
     snake = snakesLookup[snakeId]
     
+    # Determine a rank for each potential move
     leftMoveScore = calculateScoreForSnakeMovement(board, snakesLookup, foods, snakeId, -1, 0, boardWidth, boardHeight)
     puts "Left Score = #{leftMoveScore}"
     rightMoveScore = calculateScoreForSnakeMovement(board, snakesLookup, foods, snakeId, 1, 0, boardWidth, boardHeight)
@@ -53,18 +54,7 @@ post '/move' do
     puts "Down Score = #{downMoveScore}"
     
     # Select the move with the highest score
-    if leftMoveScore >= rightMoveScore and leftMoveScore >= upMoveScore and leftMoveScore >= downMoveScore
-        move = "left"
-    end
-    if rightMoveScore >= leftMoveScore and rightMoveScore >= upMoveScore and rightMoveScore >= downMoveScore
-        move = "right"
-    end
-    if upMoveScore >= leftMoveScore and upMoveScore >= rightMoveScore and upMoveScore >= downMoveScore
-        move = "up"
-    end
-    if downMoveScore >= leftMoveScore and downMoveScore >= rightMoveScore and downMoveScore >= upMoveScore
-        move = "down"
-    end
+    move = selectMoveWithHighestScore(leftMoveScore, rightMoveScore, upMoveScore, downMoveScore)
 
     # Set the response
     responseObject = {
@@ -82,6 +72,7 @@ A score of -1 means that the direction is a wall or snake.
 def calculateScoreForSnakeMovement(board, snakes, foods, snakeId, xOffset, yOffset, boardWidth, boardHeight)
     snake = snakes[snakeId]
     snakeHead = snake.coords[0]
+    snakeTail = snake.coords[snake.coords.length - 1]
     
     xPosition = snakeHead[0] + xOffset
     yPosition = snakeHead[1] + yOffset
@@ -89,6 +80,12 @@ def calculateScoreForSnakeMovement(board, snakes, foods, snakeId, xOffset, yOffs
     # Verify that the square does not contain another snake or is a wall
     validMove = snakeCanMoveToPosition(xPosition, yPosition, board, snakes, boardWidth, boardHeight)
     if validMove == false
+        return -1
+    end
+    
+    # Verify that snake can get back to its own tail
+    snakeCanGetBackToTail = pathExistsBetweenTwoPoints(xPosition, yPosition, snakeTail[0], snakeTail[1], board)
+    if snakeCanGetBackToTail == false
         return -1
     end
     
@@ -105,13 +102,25 @@ def calculateScoreForSnakeMovement(board, snakes, foods, snakeId, xOffset, yOffs
     # Weight the food score based on the snake's remaining health
     foodScore *= 100 - snake.health
     
-    # TODO: Verify that snake can get back to its own tail
+    # TODO: Check that another snake's head can move into this square
     
     # TODO: Generate score based on the number of squares that the snake can access from this location
+    
+    # TODO: Generate score based on how stretched out the snake will be
     
     totalScore = foodScore
     
     return totalScore
+end
+
+def pathExistsBetweenTwoPoints(startXPosition, startYPosition, endXPosition, endYPosition, board)
+    if startXPosition == endXPosition and startYPosition == endYPosition
+        return true
+    end
+    
+    # TODO: Add logic for this!
+    
+    return true
 end
 
 =begin
@@ -277,6 +286,26 @@ def moveSnakeInBoard(board, snakeId, headXPosition, headYPosition)
     end
     
     return boardClone
+end
+
+=begin
+Selects the move with the highest score. If all are equal, favors left > right > up > down.
+=end
+def selectMoveWithHighestScore(leftMoveScore, rightMoveScore, upMoveScore, downMoveScore)
+    if leftMoveScore >= rightMoveScore and leftMoveScore >= upMoveScore and leftMoveScore >= downMoveScore
+        move = "left"
+    end
+    if rightMoveScore >= leftMoveScore and rightMoveScore >= upMoveScore and rightMoveScore >= downMoveScore
+        move = "right"
+    end
+    if upMoveScore >= leftMoveScore and upMoveScore >= rightMoveScore and upMoveScore >= downMoveScore
+        move = "up"
+    end
+    if downMoveScore >= leftMoveScore and downMoveScore >= rightMoveScore and downMoveScore >= upMoveScore
+        move = "down"
+    end
+    
+    return move
 end
 
 class SnakeSegment
