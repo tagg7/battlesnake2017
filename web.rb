@@ -3,6 +3,8 @@ require 'sinatra/reloader' if development?
 require 'json'
 include Math
 
+# http://battlesnake-773592db.b92493ea.svc.dockerapp.io:3201/
+
 BLANK_VALUE = 0
 FOOD_VALUE = 1
 
@@ -43,6 +45,8 @@ post '/move' do
     snakesLookup = generateSnakesLookup(snakes)
     snake = snakesLookup[snakeId]
     
+    puts requestJson
+    
     # Determine a rank for each potential move
     leftMoveScore = calculateScoreForSnakeMovement(board, snakesLookup, foods, snakeId, -1, 0, boardWidth, boardHeight)
     puts "Left Score = #{leftMoveScore}"
@@ -55,6 +59,7 @@ post '/move' do
     
     # Select the move with the highest score
     move = selectMoveWithHighestScore(leftMoveScore, rightMoveScore, upMoveScore, downMoveScore)
+    puts "I am moving #{move}"
 
     # Set the response
     responseObject = {
@@ -294,14 +299,11 @@ Selects the move with the highest score. If all are equal, favors left > right >
 def selectMoveWithHighestScore(leftMoveScore, rightMoveScore, upMoveScore, downMoveScore)
     if leftMoveScore >= rightMoveScore and leftMoveScore >= upMoveScore and leftMoveScore >= downMoveScore
         move = "left"
-    end
-    if rightMoveScore >= leftMoveScore and rightMoveScore >= upMoveScore and rightMoveScore >= downMoveScore
+    elsif rightMoveScore >= leftMoveScore and rightMoveScore >= upMoveScore and rightMoveScore >= downMoveScore
         move = "right"
-    end
-    if upMoveScore >= leftMoveScore and upMoveScore >= rightMoveScore and upMoveScore >= downMoveScore
+    elsif upMoveScore >= leftMoveScore and upMoveScore >= rightMoveScore and upMoveScore >= downMoveScore
         move = "up"
-    end
-    if downMoveScore >= leftMoveScore and downMoveScore >= rightMoveScore and downMoveScore >= upMoveScore
+    elsif downMoveScore >= leftMoveScore and downMoveScore >= rightMoveScore and downMoveScore >= upMoveScore
         move = "down"
     end
     
