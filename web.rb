@@ -7,6 +7,7 @@ include Math
 
 BLANK_VALUE = 0
 FOOD_VALUE = 1
+BREAD_CRUMB = 2
 
 get '/' do
     return "Battlesnake: Hello World!"
@@ -20,9 +21,9 @@ post '/start' do
     
     responseObject = {
         "color" => "#87CEEB",
-        "head_url" => "http://i.imgur.com/0LyUPYl.png",
-        "name" => "Test Snake",
-        "taunt" => "Her Majesty's Civil Serpent",
+        "head_url" => "http://i.imgur.com/DdOHM2U.png",
+        "name" => "Her Majesty's Civil Serpent",
+        "taunt" => "We are not pleassssed",
     }
 
     return responseObject.to_json
@@ -47,18 +48,22 @@ post '/move' do
     
     puts requestJson
     
-    # Determine a rank for each potential move
-    leftMoveScore = calculateScoreForSnakeMovement(board, snakesLookup, foods, snakeId, -1, 0, boardWidth, boardHeight)
-    puts "Left Score = #{leftMoveScore}"
-    rightMoveScore = calculateScoreForSnakeMovement(board, snakesLookup, foods, snakeId, 1, 0, boardWidth, boardHeight)
-    puts "Right Score = #{rightMoveScore}"
-    upMoveScore = calculateScoreForSnakeMovement(board, snakesLookup, foods, snakeId, 0, -1, boardWidth, boardHeight)
-    puts "Up Score = #{upMoveScore}"
-    downMoveScore = calculateScoreForSnakeMovement(board, snakesLookup, foods, snakeId, 0, 1, boardWidth, boardHeight)
-    puts "Down Score = #{downMoveScore}"
+    move = nil
+    moveDecided = false
     
-    # Select the move with the highest score
-    move = selectMoveWithHighestScore(leftMoveScore, rightMoveScore, upMoveScore, downMoveScore)
+    # Routine 1: Go towards food
+    # When our snake is the closest snake to a piece of food (and there is a clear path to that food), go towards it
+    moveForFood = determineDirectionForClosestPieceOfFood(board, snakesLookup, snakeId, foods, boardWidth, boardHeight)
+    if moveForFood != nil
+        moveDecided = true
+        move = moveForFood
+    end
+    
+    # Routine 2: Randomly select a direction
+    if moveDecided == false
+        move = randomlySelectValidDirection(board, snakesLookup, snakeId, boardWidth, boardHeight)
+    end
+    
     puts "I am moving #{move}"
 
     # Set the response
@@ -70,69 +75,154 @@ post '/move' do
     return responseObject.to_json
 end
 
-=begin
-This method calculates a score that should be used to determine which direction to move the snake for the given x- and y-offset.
-A score of -1 means that the direction is a wall or snake.
-=end
-def calculateScoreForSnakeMovement(board, snakes, foods, snakeId, xOffset, yOffset, boardWidth, boardHeight)
-    snake = snakes[snakeId]
-    snakeHead = snake.coords[0]
-    snakeTail = snake.coords[snake.coords.length - 1]
+def determineDirectionForClosestPieceOfFood(board, snakes, snakeId, foods, boardWidth, boardHeight)
+    bestDirection = nil
+    shortestDistance = -1
     
-    xPosition = snakeHead[0] + xOffset
-    yPosition = snakeHead[1] + yOffset
+    snakeHead = snakes[snakeId].coords[0]
     
-    # Verify that the square does not contain another snake or is a wall
-    validMove = snakeCanMoveToPosition(xPosition, yPosition, board, snakes, boardWidth, boardHeight)
-    if validMove == false
-        return -1
-    end
-    
-    # Verify that snake can get back to its own tail
-    snakeCanGetBackToTail = pathExistsBetweenTwoPoints(xPosition, yPosition, snakeTail[0], snakeTail[1], board)
-    if snakeCanGetBackToTail == false
-        return -1
-    end
-    
-    # Modify the snakes lookup to simulate the snake moving to the specified position
-    snakesClone = moveSnakeInSnakesLookup(snakes, snakeId, xPosition, yPosition)
-    #boardClone = moveSnakeInBoard(board, snakeId, xPosition, yPosition)
-    
-    # Calculate score for each source of food
-    foodScore = 0
     for i in 0..(foods.length - 1)
-        foodScore += calculateScoreForSnakesProximityToFood(snakesClone, snakeId, foods[i])
+        food = foods[i]
+    
+        # Calculate shortest path to the food
+        shortestPathToFood = shortestPathBetweenTwoPoints(snakeHead[0], snakeHead[1], food[0], food[1], board, boardWidth, boardHeight)
+        if shortestPathToFood == nil
+            next
+        end
+        
+        distance = shortestPathToFood[0]
+        puts "Distance to food is #{distance}"
+        direction = shortestPathToFood[1]
+        puts "Direction to food is #{direction}"
+        
+        # Check that we haven't already found food that is closer than this
+        if distance >= shortestDistance and shortestDistance != -1
+            next
+        end
+        
+        # Determine whether another snake is closer to the food than us
+        otherSnakeCloser = false
+        snakes.each do |otherSnakeId, otherSnake|
+            if otherSnakeId != snakeId
+                otherSnakeShortestPathToFood = shortestPathBetweenTwoPoints(otherSnake.coords[0][0], otherSnake.coords[0][1], food[0], food[1], board, boardWidth, boardHeight)
+                otherSnakeDistance = otherSnakeShortestPathToFood[0]
+                
+                if otherSnakeDistance < distance
+                    otherSnakeCloser = true
+                    break
+                end
+            end
+        end
+        
+        if otherSnakeCloser == true
+            next
+        end
+        
+        shortestDistance = distance
+        bestDirection = direction
     end
     
-    # Weight the food score based on the snake's remaining health
-    foodScore *= 100 - snake.health
-    
-    # TODO: Check that another snake's head can move into this square
-    
-    # TODO: Generate score based on the number of squares that the snake can access from this location
-    
-    # TODO: Generate score based on how stretched out the snake will be
-    
-    totalScore = foodScore
-    
-    return totalScore
+    return bestDirection
 end
 
-def pathExistsBetweenTwoPoints(startXPosition, startYPosition, endXPosition, endYPosition, board)
-    if startXPosition == endXPosition and startYPosition == endYPosition
-        return true
+# https://www.raywenderlich.com/4946/introduction-to-a-pathfinding
+def shortestPathBetweenTwoPoints(startXPosition, startYPosition, endXPosition, endYPosition, board, boardWidth, boardHeight)
+    openList = Hash.new
+    closedList = Hash.new
+    
+    endSquareCoords = [endXPosition, endYPosition]
+    startSquareCoords = [startXPosition, startYPosition]
+    optimalDistanceToEnd = distanceToCoord(startXPosition, startYPosition, endXPosition, endYPosition)
+    
+    openList[startSquareCoords] = PathfinderSegment.new(startSquareCoords, nil, 0, optimalDistanceToEnd, optimalDistanceToEnd)
+    
+    while !openList.empty?
+        # Get the square with the lowest F score
+        currentSquare = nil
+        lowestFScore = -1
+        openList.each do |key, segment|
+            if lowestFScore == -1 or segment.fValue <= lowestFScore
+                currentSquare = segment
+                lowestFScore = segment.fValue
+            end
+        end
+        
+        closedList[currentSquare.coords] = currentSquare
+        openList.delete(currentSquare.coords)
+        
+        # We have found a path
+        if closedList.key?(endSquareCoords)
+            length = 0
+            currentSquare = closedList[endSquareCoords]
+            previousSquare = nil
+            
+            while currentSquare.parent != nil
+                previousSquare = currentSquare
+                currentSquare = closedList[currentSquare.parent]
+                length += 1
+            end
+            
+            if currentSquare.coords[0] < previousSquare.coords[0]
+                direction = "right"
+            elsif currentSquare.coords[0] > previousSquare.coords[0]
+                direction = "left"
+            elsif currentSquare.coords[1] > previousSquare.coords[1]
+                direction = "up"
+            elsif currentSquare.coords[1] < previousSquare.coords[1]
+                direction = "down"
+            end
+            
+            return length, direction
+        end
+        
+        adjacentSquaresCoords = [[currentSquare.coords[0] - 1, currentSquare.coords[1]], [currentSquare.coords[0] + 1, currentSquare.coords[1]], [currentSquare.coords[0], currentSquare.coords[1] - 1], [currentSquare.coords[0], currentSquare.coords[1] + 1]]
+        adjacentSquaresCoords.each do |adjacentSquareCoords|
+            # Verify this is a valid square
+            if !snakeCanMoveToPosition(adjacentSquareCoords[0], adjacentSquareCoords[1], board, boardWidth, boardHeight)
+                next
+            end
+            
+            if closedList.key?(adjacentSquareCoords)
+                next
+            end
+            
+            if !openList.key?(adjacentSquareCoords)
+                adjacentSquareDistanceToEnd = distanceToCoord(adjacentSquareCoords[0], adjacentSquareCoords[1], endXPosition, endYPosition)
+                openList[adjacentSquareCoords] = PathfinderSegment.new(adjacentSquareCoords, currentSquare.coords, currentSquare.gValue + 1, adjacentSquareDistanceToEnd, currentSquare.gValue + 1 + adjacentSquareDistanceToEnd)
+            else
+                if currentSquare.gValue + 1 < openList[adjacentSquareCoords].gValue
+                    openList[adjacentSquareCoords].gValue = currentSquare.gValue + 1
+                    openList[adjacentSquareCoords].fValue = openList[adjacentSquareCoords].gValue + openList[adjacentSquareCoords].hValue
+                end
+            end
+        end
     end
     
-    # TODO: Add logic for this!
+    return nil
+end
+
+def randomlySelectValidDirection(board, snakes, snakeId, boardWidth, boardHeight)
+    snake = snakes[snakeId]
+    snakeHead = snake.coords[0]
     
-    return true
+    if snakeCanMoveToPosition(snakeHead[0] - 1, snakeHead[1], board, boardWidth, boardHeight)
+        return "left"
+    elsif snakeCanMoveToPosition(snakeHead[0] + 1, snakeHead[1], board, boardWidth, boardHeight)
+        return "right"
+    elsif snakeCanMoveToPosition(snakeHead[0], snakeHead[1] - 1, board, boardWidth, boardHeight)
+        return "up"
+    elsif snakeCanMoveToPosition(snakeHead[0], snakeHead[1] + 1, board, boardWidth, boardHeight)
+        return "down"
+    end
+    
+    return null
 end
 
 =begin
 This method returns true if the specified position is empty (and inside the board). If the space is currently occupied by a snake's tail, then it will also return true.
 For all other scenarios, returns false.
 =end
-def snakeCanMoveToPosition(xPosition, yPosition, board, snakes, boardWidth, boardHeight)
+def snakeCanMoveToPosition(xPosition, yPosition, board, boardWidth, boardHeight)
     # Verify that this position is not outside the board area
     if xPosition < 0 or xPosition >= boardWidth
         return false
@@ -144,59 +234,21 @@ def snakeCanMoveToPosition(xPosition, yPosition, board, snakes, boardWidth, boar
     # Verify that this position is not another snake's body
     currentObjectInPosition = board[[xPosition, yPosition]]
     if currentObjectInPosition.is_a?(SnakeSegment)
-        matchingSnake = snakes[currentObjectInPosition.id]
-        
-        # If this position is currently a snake's tail, then we can safely access it because it will be moved further by next turn
-        # NOTE: Edge case when starting out - body is collapsed onto multiple squares
-        if (matchingSnake.coords[matchingSnake.coords.length-1] == [xPosition, yPosition]) and (matchingSnake.coords[matchingSnake.coords.length-1] != matchingSnake.coords[matchingSnake.coords.length-2])
-            return true
-        end
-        
-        return false
+        return currentObjectInPosition.isTailThatWillMoveNextTurn
     end
     
     return true
 end
 
 =begin
-This method returns a score out of 100 based on how close the food is. If another snake is closer to the food than the selected snake, then the score is 0.
+This method returns the exact distance to the selected space in squares.
 =end
-def calculateScoreForSnakesProximityToFood(snakes, snakeId, food)
-    snakeHead = snakes[snakeId].coords[0]
-    
-    # Calculate our distance to the food
-    distance = distanceToFood(snakeHead, food)
-    
-    # Determine whether another snake is closer to the food than us
-    snakes.each do |otherSnakeId, otherSnake|
-        if otherSnakeId == snakeId
-            next
-        end
-        
-        otherSnakeDistance = distanceToFood(otherSnake.coords[0], food)
-        if otherSnakeDistance < distance
-            return 0
-        end
-    end
-    
-    return 100 - distance
-end
-
-=begin
-This method returns the exact distance to the selected food in squares.
-=end
-def distanceToFood(snakeHead, food)
-    snakeHeadX = snakeHead[0];
-    snakeHeadY = snakeHead[1];
-    
-    foodX = food[0];
-    foodY = food[1];
-    
-    if snakeHeadX == foodX and snakeHeadY == foodY
+def distanceToCoord(startXPosition, startYPosition, endXPosition, endYPosition)
+    if startXPosition == endXPosition and startYPosition == endYPosition
         return 0
     end
     
-    return (foodX - snakeHeadX).abs + (foodY - snakeHeadY).abs
+    return (startXPosition - endXPosition).abs + (startYPosition - endYPosition).abs
 end
 
 =begin
@@ -221,8 +273,14 @@ def generateBoard(snakes, foods)
             if board[[coords[i][0], coords[i][1]]] != BLANK_VALUE
                 next
             end
+            
+            # Add the tail attribute if valid
+            isTailThatWillMoveNextTurn = false
+            if i == coords.length-1 and coords[i] != coords[i-1]
+                isTailThatWillMoveNextTurn = true
+            end
         
-            segment = SnakeSegment.new(id, i, length, health)
+            segment = SnakeSegment.new(id, i, length, health, isTailThatWillMoveNextTurn)
             board[[coords[i][0], coords[i][1]]] = segment
         end
     end
@@ -293,35 +351,20 @@ def moveSnakeInBoard(board, snakeId, headXPosition, headYPosition)
     return boardClone
 end
 
-=begin
-Selects the move with the highest score. If all are equal, favors left > right > up > down.
-=end
-def selectMoveWithHighestScore(leftMoveScore, rightMoveScore, upMoveScore, downMoveScore)
-    if leftMoveScore >= rightMoveScore and leftMoveScore >= upMoveScore and leftMoveScore >= downMoveScore
-        move = "left"
-    elsif rightMoveScore >= leftMoveScore and rightMoveScore >= upMoveScore and rightMoveScore >= downMoveScore
-        move = "right"
-    elsif upMoveScore >= leftMoveScore and upMoveScore >= rightMoveScore and upMoveScore >= downMoveScore
-        move = "up"
-    elsif downMoveScore >= leftMoveScore and downMoveScore >= rightMoveScore and downMoveScore >= upMoveScore
-        move = "down"
-    end
-    
-    return move
-end
-
 class SnakeSegment
-    def initialize(id, segmentNum, totalLength, health)
+    def initialize(id, segmentNum, totalLength, health, isTailThatWillMoveNextTurn)
         @id = id
         @segmentNum = segmentNum
         @totalLength = totalLength
         @health = health
+        @isTailThatWillMoveNextTurn = isTailThatWillMoveNextTurn
     end
     
     attr_accessor :id
     attr_accessor :segmentNum
     attr_accessor :totalLength
     attr_accessor :health
+    attr_accessor :isTailThatWillMoveNextTurn
 end
 
 class Snake
@@ -334,4 +377,20 @@ class Snake
     attr_accessor :totalLength
     attr_accessor :health
     attr_accessor :coords
+end
+
+class PathfinderSegment
+    def initialize(coords, parent, gValue, hValue, fValue)
+        @coords = coords
+        @parent = parent
+        @gValue = gValue
+        @hValue = hValue
+        @fValue = fValue
+    end
+    
+    attr_accessor :coords
+    attr_accessor :parent
+    attr_accessor :gValue
+    attr_accessor :hValue
+    attr_accessor :fValue
 end
