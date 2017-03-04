@@ -45,7 +45,7 @@ post '/move' do
     # Generate objects needed for future analysis
     board = generateBoard(snakes, foods)
     snakesLookup = generateSnakesLookup(snakes)
-    #snake = snakesLookup[snakeId]
+    snake = snakesLookup[snakeId]
     
     puts requestJson
     
@@ -56,18 +56,36 @@ post '/move' do
     # When our snake is the closest snake to a piece of food (and there is a clear path to that food), go towards it
     moveForFood = determineDirectionForClosestPieceOfFood(board, snakesLookup, snakeId, foods, boardWidth, boardHeight)
     if moveForFood != nil
-        moveDecided = true
-        move = moveForFood
+        #if snakeCanGetBackToTail(board, snakesLookup, snakeId, moveForFood, boardWidth, boardHeight)
+            moveDecided = true
+            move = moveForFood
+        #end
     end
     
-    # Routine 2: Randomly select a direction
+    # Routine 2: Select the direction with the shortest path to getting back to our tail
+    # if moveDecided == false
+    #     snakeHead = snake.coords[0]
+    #     snakeTail = snake.coords[snake.coords.length - 1]
+        
+    #     shortestPathToTail = shortestPathBetweenTwoPoints(snakeHead[0], snakeHead[1], snakeTail[0], snakeTail[1], board, boardWidth, boardHeight)
+    #     if shortestPathToTail != nil
+    #         moveDecided = true
+    #         move = shortestPathToTail[1]
+    #     end
+    # end
+    
+    # Routine 3: Randomly select a direction that does not immediately kill our snake
     if moveDecided == false
         randomValidMove = randomlySelectValidDirection(board, snakesLookup, snakeId, boardWidth, boardHeight)
         if randomValidMove != nil
+            moveDecided = true
             move = randomValidMove
-        else
-            move = "up"
         end
+    end
+    
+    # Routine Final: No safe direction; goodbye cruel world
+    if moveDecided == false
+        move = "down"
     end
     
     puts "I am moving #{move}"
@@ -206,6 +224,29 @@ def shortestPathBetweenTwoPoints(startXPosition, startYPosition, endXPosition, e
     end
     
     return nil
+end
+
+def snakeCanGetBackToTail(board, snakes, snakeId, direction, boardWidth, boardHeight)
+    snake = snakes[snakeId]
+    snakeHead = snake.coords[0]
+    snakeTail = snake.coords[snake.coords.length - 1]
+    
+    shortestPath = nil
+    if direction == "left"
+        shortestPath = shortestPathBetweenTwoPoints(snakeHead[0] - 1, snakeHead[1], snakeTail[0], snakeTail[1], board, boardWidth, boardHeight)
+    elsif direction == "right"
+        shortestPath = shortestPathBetweenTwoPoints(snakeHead[0] + 1, snakeHead[1], snakeTail[0], snakeTail[1], board, boardWidth, boardHeight)
+    elsif direction == "up"
+        shortestPath = shortestPathBetweenTwoPoints(snakeHead[0], snakeHead[1] - 1, snakeTail[0], snakeTail[1], board, boardWidth, boardHeight)
+    elsif direction == "down"
+        shortestPath = shortestPathBetweenTwoPoints(snakeHead[0], snakeHead[1] + 1, snakeTail[0], snakeTail[1], board, boardWidth, boardHeight)
+    end
+    
+    if shortestPath != nil
+        return true
+    end
+    
+    return false
 end
 
 def randomlySelectValidDirection(board, snakes, snakeId, boardWidth, boardHeight)
