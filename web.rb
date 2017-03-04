@@ -16,14 +16,15 @@ end
 post '/start' do
     requestBody = request.body.read
     requestJson = requestBody ? JSON.parse(requestBody) : {}
-
-    # TODO: Get ready to start a game with the request data
     
     responseObject = {
-        "color" => "#87CEEB",
+        "color" => "#D7B740",
+        "secondary_color" => "#925818",
         "head_url" => "http://i.imgur.com/DdOHM2U.png",
+        "head_type" => "fang",
+        "tail_type" => "round-bum",
         "name" => "Her Majesty's Civil Serpent",
-        "taunt" => "We are not pleassssed",
+        "taunt" => "We are not pleassssed"
     }
 
     return responseObject.to_json
@@ -61,7 +62,12 @@ post '/move' do
     
     # Routine 2: Randomly select a direction
     if moveDecided == false
-        move = randomlySelectValidDirection(board, snakesLookup, snakeId, boardWidth, boardHeight)
+        randomValidMove = randomlySelectValidDirection(board, snakesLookup, snakeId, boardWidth, boardHeight)
+        if randomValidMove != nil
+            move = randomValidMove
+        else
+            move = "up"
+        end
     end
     
     puts "I am moving #{move}"
@@ -69,7 +75,7 @@ post '/move' do
     # Set the response
     responseObject = {
         "move" => move,
-        "taunt" => "Gotta go fast!",
+        "taunt" => "We are not pleassssed"
     }
 
     return responseObject.to_json
@@ -215,7 +221,7 @@ def randomlySelectValidDirection(board, snakes, snakeId, boardWidth, boardHeight
         return "down"
     end
     
-    return null
+    return nil
 end
 
 =begin
