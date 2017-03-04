@@ -35,7 +35,7 @@ post '/move' do
     requestJson = requestBody ? JSON.parse(requestBody) : {}
     
     # Extract data from the request object
-    gameId = requestJson["game_id"]
+    #gameId = requestJson["game_id"]
     snakeId = requestJson["you"]
     boardWidth = requestJson["width"]
     boardHeight = requestJson["height"]
@@ -45,7 +45,7 @@ post '/move' do
     # Generate objects needed for future analysis
     board = generateBoard(snakes, foods)
     snakesLookup = generateSnakesLookup(snakes)
-    snake = snakesLookup[snakeId]
+    #snake = snakesLookup[snakeId]
     
     puts requestJson
     
@@ -97,9 +97,7 @@ def determineDirectionForClosestPieceOfFood(board, snakes, snakeId, foods, board
         end
         
         distance = shortestPathToFood[0]
-        puts "Distance to food is #{distance}"
         direction = shortestPathToFood[1]
-        puts "Direction to food is #{direction}"
         
         # Check that we haven't already found food that is closer than this
         if distance >= shortestDistance and shortestDistance != -1
@@ -111,9 +109,12 @@ def determineDirectionForClosestPieceOfFood(board, snakes, snakeId, foods, board
         snakes.each do |otherSnakeId, otherSnake|
             if otherSnakeId != snakeId
                 otherSnakeShortestPathToFood = shortestPathBetweenTwoPoints(otherSnake.coords[0][0], otherSnake.coords[0][1], food[0], food[1], board, boardWidth, boardHeight)
-                otherSnakeDistance = otherSnakeShortestPathToFood[0]
+                if otherSnakeShortestPathToFood == nil
+                    next
+                end
                 
-                if otherSnakeDistance < distance
+                otherSnakeDistance = otherSnakeShortestPathToFood[0]
+                if otherSnakeDistance < distance or (otherSnakeDistance == distance and otherSnake.totalLength >= snakes[snakeId].totalLength)
                     otherSnakeCloser = true
                     break
                 end
