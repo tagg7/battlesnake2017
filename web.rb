@@ -47,7 +47,7 @@ post '/move' do
     snakesLookup = generateSnakesLookup(snakes)
     snake = snakesLookup[snakeId]
     
-    puts requestJson
+    #puts requestJson
     
     move = nil
     moveDecided = false
@@ -55,7 +55,7 @@ post '/move' do
     # Routine 1: Go towards food
     moveForFood = determineClosestPieceOfFood(board, snakesLookup, snakeId, foods, boardWidth, boardHeight)
     if moveForFood != nil and (snake.health < 50 or moveForFood[0] < 10)
-        if snakeCanGetBackToTail(board, snakesLookup, snakeId, moveForFood[1], boardWidth, boardHeight)
+        if snakeCanGetBackToTail(board, snakesLookup, snakeId, moveForFood[1], boardWidth, boardHeight) and !otherSnakeCanCompeteForSquare(board, snakesLookup, snakeId, moveForFood[1])
             moveDecided = true
             move = moveForFood[1]
         end
@@ -65,7 +65,7 @@ post '/move' do
     if moveDecided == false and snakesLookup.length <= 3
         moveForSnakeToFollow = determineDirectionToFollowClosestSnake(board, snakesLookup, snakeId, boardWidth, boardHeight)
         if moveForSnakeToFollow != nil
-            if snakeCanGetBackToTail(board, snakesLookup, snakeId, moveForSnakeToFollow, boardWidth, boardHeight)
+            if snakeCanGetBackToTail(board, snakesLookup, snakeId, moveForSnakeToFollow, boardWidth, boardHeight) and !otherSnakeCanCompeteForSquare(board, snakesLookup, snakeId, moveForSnakeToFollow)
                 moveDecided = true
                 move = moveForSnakeToFollow
             end
@@ -78,8 +78,7 @@ post '/move' do
         snakeTail = snake.coords[snake.coords.length - 1]
         
         shortestPathToTail = shortestPathBetweenTwoPoints(snakeHead[0], snakeHead[1], snakeTail[0], snakeTail[1], board, boardWidth, boardHeight)
-        puts shortestPathToTail
-        if shortestPathToTail != nil and shortestPathToTail[1] != nil
+        if shortestPathToTail != nil and shortestPathToTail[1] != nil and !otherSnakeCanCompeteForSquare(board, snakesLookup, snakeId, shortestPathToTail[1])
             moveDecided = true
             move = shortestPathToTail[1]
         end
@@ -99,7 +98,7 @@ post '/move' do
         move = "down"
     end
     
-    puts "I am moving #{move}"
+    #puts "I am moving #{move}"
 
     # Set the response
     responseObject = {
@@ -108,6 +107,41 @@ post '/move' do
     }
 
     return responseObject.to_json
+end
+
+def otherSnakeCanCompeteForSquare(board, snakes, snakeId, direction)
+    snake = snakes[snakeId]
+    snakeHead = snake.coords[0]
+    
+    if direction == "left"
+        xPosition = snakeHead[0] - 1
+        yPosition = snakeHead[1]
+    elsif direction == "right"
+        xPosition = snakeHead[0] + 1
+        yPosition = snakeHead[1]
+    elsif direction == "up"
+        xPosition = snakeHead[0]
+        yPosition = snakeHead[1] - 1
+    elsif direction == "down"
+        xPosition = snakeHead[0]
+        yPosition = snakeHead[1] + 1
+    end
+    
+    adjacentSquaresCoords = [[xPosition - 1, yPosition], [xPosition + 1, yPosition], [xPosition, yPosition - 1], [xPosition, yPosition + 1]]
+    adjacentSquaresCoords.each do |adjacentSquareCoords|
+        if board[adjacentSquareCoords].is_a?(SnakeSegment)
+            snakeSegment = board[adjacentSquareCoords]
+            if snakeSegment.id == snakeId
+                next
+            end
+            
+            if snakeSegment.segmentNum == 0 and snakeSegment.totalLength >= snake.totalLength
+                return true
+            end
+        end
+    end
+    
+    return false
 end
 
 def determineDirectionToFollowClosestSnake(board, snakes, snakeId, boardWidth, boardHeight)
@@ -345,13 +379,13 @@ def randomlySelectValidDirection(board, snakes, snakeId, boardWidth, boardHeight
     snake = snakes[snakeId]
     snakeHead = snake.coords[0]
     
-    if snakeCanMoveToPosition(snakeHead[0] - 1, snakeHead[1], board, boardWidth, boardHeight)
+    if snakeCanMoveToPosition(snakeHead[0] - 1, snakeHead[1], board, boardWidth, boardHeight) and !otherSnakeCanCompeteForSquare(board, snakes, snakeId, "left")
         return "left"
-    elsif snakeCanMoveToPosition(snakeHead[0] + 1, snakeHead[1], board, boardWidth, boardHeight)
+    elsif snakeCanMoveToPosition(snakeHead[0] + 1, snakeHead[1], board, boardWidth, boardHeight) and !otherSnakeCanCompeteForSquare(board, snakes, snakeId, "right")
         return "right"
-    elsif snakeCanMoveToPosition(snakeHead[0], snakeHead[1] - 1, board, boardWidth, boardHeight)
+    elsif snakeCanMoveToPosition(snakeHead[0], snakeHead[1] - 1, board, boardWidth, boardHeight) and !otherSnakeCanCompeteForSquare(board, snakes, snakeId, "up")
         return "up"
-    elsif snakeCanMoveToPosition(snakeHead[0], snakeHead[1] + 1, board, boardWidth, boardHeight)
+    elsif snakeCanMoveToPosition(snakeHead[0], snakeHead[1] + 1, board, boardWidth, boardHeight) and !otherSnakeCanCompeteForSquare(board, snakes, snakeId, "down")
         return "down"
     end
     
