@@ -23,8 +23,8 @@ post '/start' do
         "head_url" => "http://i.imgur.com/DdOHM2U.png",
         "head_type" => "fang",
         "tail_type" => "round-bum",
-        "name" => "Her Majesty's Civil Serpent",
-        "taunt" => "We are not pleassssed"
+        "name" => "Double O Snake",
+        "taunt" => "Her Majesty's Civil Serpent"
     }
 
     return responseObject.to_json
@@ -53,28 +53,39 @@ post '/move' do
     moveDecided = false
     
     # Routine 1: Go towards food
-    # When our snake is the closest snake to a piece of food (and there is a clear path to that food), go towards it
-    moveForFood = determineDirectionForClosestPieceOfFood(board, snakesLookup, snakeId, foods, boardWidth, boardHeight)
-    if moveForFood != nil
-        #if snakeCanGetBackToTail(board, snakesLookup, snakeId, moveForFood, boardWidth, boardHeight)
+    moveForFood = determineClosestPieceOfFood(board, snakesLookup, snakeId, foods, boardWidth, boardHeight)
+    if moveForFood != nil and (snake.health < 50 or moveForFood[0] < 10)
+        if snakeCanGetBackToTail(board, snakesLookup, snakeId, moveForFood[1], boardWidth, boardHeight)
             moveDecided = true
-            move = moveForFood
-        #end
+            move = moveForFood[1]
+        end
     end
     
-    # Routine 2: Select the direction with the shortest path to getting back to our tail
-    # if moveDecided == false
-    #     snakeHead = snake.coords[0]
-    #     snakeTail = snake.coords[snake.coords.length - 1]
-        
-    #     shortestPathToTail = shortestPathBetweenTwoPoints(snakeHead[0], snakeHead[1], snakeTail[0], snakeTail[1], board, boardWidth, boardHeight)
-    #     if shortestPathToTail != nil
-    #         moveDecided = true
-    #         move = shortestPathToTail[1]
-    #     end
-    # end
+    # Routine 2: Follow a snake
+    if moveDecided == false and snakesLookup.length <= 3
+        moveForSnakeToFollow = determineDirectionToFollowClosestSnake(board, snakesLookup, snakeId, boardWidth, boardHeight)
+        if moveForSnakeToFollow != nil
+            if snakeCanGetBackToTail(board, snakesLookup, snakeId, moveForSnakeToFollow, boardWidth, boardHeight)
+                moveDecided = true
+                move = moveForSnakeToFollow
+            end
+        end
+    end
     
-    # Routine 3: Randomly select a direction that does not immediately kill our snake
+    # Routine 3: Select the direction with the shortest path to getting back to our tail
+    if moveDecided == false and (snake.totalLength > 3 or snake.coords[snake.coords.length - 1] != snake.coords[snake.coords.length - 2])
+        snakeHead = snake.coords[0]
+        snakeTail = snake.coords[snake.coords.length - 1]
+        
+        shortestPathToTail = shortestPathBetweenTwoPoints(snakeHead[0], snakeHead[1], snakeTail[0], snakeTail[1], board, boardWidth, boardHeight)
+        puts shortestPathToTail
+        if shortestPathToTail != nil and shortestPathToTail[1] != nil
+            moveDecided = true
+            move = shortestPathToTail[1]
+        end
+    end
+    
+    # Routine 4: Randomly select a direction that does not immediately kill our snake
     if moveDecided == false
         randomValidMove = randomlySelectValidDirection(board, snakesLookup, snakeId, boardWidth, boardHeight)
         if randomValidMove != nil
@@ -93,13 +104,79 @@ post '/move' do
     # Set the response
     responseObject = {
         "move" => move,
-        "taunt" => "We are not pleassssed"
+        "taunt" => "Her Majesty's Civil Serpent"
     }
 
     return responseObject.to_json
 end
 
-def determineDirectionForClosestPieceOfFood(board, snakes, snakeId, foods, boardWidth, boardHeight)
+def determineDirectionToFollowClosestSnake(board, snakes, snakeId, boardWidth, boardHeight)
+    snake = snakes[snakeId]
+    snakeHead = snake.coords[0]
+    
+    shortestPath = -1
+    shortestPathSnakeDirection = nil
+    
+    snakes.each do |otherSnakeId, otherSnake|
+        if otherSnakeId == snakeId
+            next
+        end
+        
+        otherSnakeTail = otherSnake.coords[otherSnake.coords.length - 1]
+        distance = shortestPathBetweenTwoPoints(snakeHead[0], snakeHead[1], otherSnakeTail[0], otherSnakeTail[1], board, boardWidth, boardHeight)
+        
+        if distance != nil
+            if shortestPath == -1 or distance[0] < shortestPath
+                shortestPath = distance[0]
+                shortestPathSnakeDirection = distance[1]
+            end
+        end
+    end
+    
+    return shortestPathSnakeDirection
+end
+
+def findDistanceToNearestSnakeOrWall(board, xPosition, yPosition, boardWidth, boardHeight)
+    openList = Hash.new
+    closedList = Hash.new
+    
+    startSquareCoords = [xPosition, yPosition]
+    openList[startSquareCoords] = 0
+    
+    while !openList.empty?
+        currentSquare = nil
+        lowestFScore = -1
+        openList.each do |key, value|
+            if lowestFScore == -1 or value <= lowestFScore
+                currentSquare = key
+                lowestFScore = value
+            end
+        end
+        
+        closedList[currentSquare] = openList[currentSquare]
+        openList.delete(currentSquare)
+        
+        adjacentSquaresCoords = [[currentSquare[0] - 1, currentSquare[1]], [currentSquare[0] + 1, currentSquare[1]], [currentSquare[0], currentSquare[1] - 1], [currentSquare[0], currentSquare[1] + 1]]
+        adjacentSquaresCoords.each do |adjacentSquareCoords|
+            # Verify this is a valid square
+            if !snakeCanMoveToPosition(adjacentSquareCoords[0], adjacentSquareCoords[1], board, boardWidth, boardHeight)
+                return closedList[currentSquare] + 1
+            end
+            
+            if closedList.key?(adjacentSquareCoords)
+                next
+            end
+            
+            if !openList.key?(adjacentSquareCoords)
+                openList[adjacentSquareCoords] = closedList[currentSquare] + 1
+            end
+        end
+    end
+    
+    return nil
+end
+
+def determineClosestPieceOfFood(board, snakes, snakeId, foods, boardWidth, boardHeight)
     bestDirection = nil
     shortestDistance = -1
     
@@ -147,11 +224,19 @@ def determineDirectionForClosestPieceOfFood(board, snakes, snakeId, foods, board
         bestDirection = direction
     end
     
-    return bestDirection
+    if bestDirection == nil
+        return nil
+    end
+    
+    return shortestDistance, bestDirection
 end
 
 # https://www.raywenderlich.com/4946/introduction-to-a-pathfinding
 def shortestPathBetweenTwoPoints(startXPosition, startYPosition, endXPosition, endYPosition, board, boardWidth, boardHeight)
+    if startXPosition ==  endXPosition and startYPosition == endYPosition
+        return 0, nil
+    end
+    
     openList = Hash.new
     closedList = Hash.new
     
@@ -159,7 +244,8 @@ def shortestPathBetweenTwoPoints(startXPosition, startYPosition, endXPosition, e
     startSquareCoords = [startXPosition, startYPosition]
     optimalDistanceToEnd = distanceToCoord(startXPosition, startYPosition, endXPosition, endYPosition)
     
-    openList[startSquareCoords] = PathfinderSegment.new(startSquareCoords, nil, 0, optimalDistanceToEnd, optimalDistanceToEnd)
+    startSquare = PathfinderSegment.new(startSquareCoords, nil, 0, optimalDistanceToEnd, optimalDistanceToEnd)
+    openList[startSquareCoords] = startSquare
     
     while !openList.empty?
         # Get the square with the lowest F score
@@ -180,6 +266,11 @@ def shortestPathBetweenTwoPoints(startXPosition, startYPosition, endXPosition, e
             length = 0
             currentSquare = closedList[endSquareCoords]
             previousSquare = nil
+            
+            if currentSquare.parent == nil
+                previousSquare = startSquare
+                length = 1
+            end
             
             while currentSquare.parent != nil
                 previousSquare = currentSquare
@@ -203,7 +294,8 @@ def shortestPathBetweenTwoPoints(startXPosition, startYPosition, endXPosition, e
         adjacentSquaresCoords = [[currentSquare.coords[0] - 1, currentSquare.coords[1]], [currentSquare.coords[0] + 1, currentSquare.coords[1]], [currentSquare.coords[0], currentSquare.coords[1] - 1], [currentSquare.coords[0], currentSquare.coords[1] + 1]]
         adjacentSquaresCoords.each do |adjacentSquareCoords|
             # Verify this is a valid square
-            if !snakeCanMoveToPosition(adjacentSquareCoords[0], adjacentSquareCoords[1], board, boardWidth, boardHeight)
+            if (!snakeCanMoveToPosition(adjacentSquareCoords[0], adjacentSquareCoords[1], board, boardWidth, boardHeight) and 
+                endSquareCoords != [adjacentSquareCoords[0], adjacentSquareCoords[1]])
                 next
             end
             
